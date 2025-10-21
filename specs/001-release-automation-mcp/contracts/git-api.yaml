@@ -1,0 +1,735 @@
+openapi: 3.0.3
+info:
+  title: Git Provider Abstraction Layer API
+  version: 1.0.0
+  description: |
+    Abstraction layer interface for Git platform operations supporting Bitbucket, GitHub, and GitLab.
+
+    **Initial Implementation**: Bitbucket (via `bitbucket` npm package)
+    **Future Support**: GitHub (via `@octokit/rest`), GitLab (via `@gitbeaker/rest`)
+
+    **Design Goals**:
+    - Platform-agnostic interface for MCP tool implementations
+    - Consistent error handling across Git providers
+    - Support for GitFlow operations (branch, merge, PR management)
+    - Constitution compliance (2 PR approvals, conflict detection, retry logic)
+
+    **Authentication**: Provider-specific (Bitbucket App Password, GitHub PAT, GitLab OAuth)
+    **Rate Limiting**: Respects provider limits with exponential backoff retry (3 attempts: 2s, 4s, 8s)
+    **Timeouts**: 30s for reads, 60s for writes
+    **Circuit Breaker**: Opens after 3 consecutive failures, 1-minute cooldown
+
+  contact:
+    name: Release Automation Team
+    email: release-team@example.com
+
+servers:
+  - url: https://api.bitbucket.org/2.0
+    description: Bitbucket Cloud API (initial implementation)
+  - url: https://api.github.com
+    description: GitHub REST API (future support)
+  - url: https://gitlab.com/api/v4
+    description: GitLab REST API (future support)
+
+tags:
+  - name: Pull Requests
+    description: PR approval checks and merge operations
+  - name: Branches
+    description: Branch creation and management
+  - name: Conflicts
+    description: Merge conflict detection and analysis
+  - name: Reviewers
+    description: Reviewer suggestion based on file history
+
+paths:
+  /pullrequests/{prId}/approvals:
+    get:
+      tags:
+        - Pull Requests
+      operationId: checkPRApprovals
+      summary: Check PR approval status
+      description: |
+        Validates whether a pull request meets the required approval threshold (minimum 2 approvals per Constitution II).
+
+        **Use Case**: Called before merging feature branches to development.
+        **Cache Strategy**: Results cached for 30 seconds to reduce API calls during polling.
+        **Constitution Compliance**: Enforces 2-approval minimum before merge.
+
+      parameters:
+        - name: prId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Pull request ID or number (e.g., "123")
+          example: "456"
+
+      responses:
+        '200':
+          description: PR approval status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PRApprovalStatus'
+              examples:
+                approved:
+                  summary: PR with sufficient approvals
+                  value:
+                    prId: "456"
+                    approvalCount: 3
+                    requiredApprovals: 2
+                    approved: true
+                    approvers:
+                      - "Alice Johnson"
+                      - "Bob Smith"
+                      - "Carol White"
+                    prOwner: "David Lee"
+                    potentialReviewers: []
+                pending:
+                  summary: PR with insufficient approvals
+                  value:
+                    prId: "456"
+                    approvalCount: 1
+                    requiredApprovals: 2
+                    approved: false
+                    approvers:
+                      - "Alice Johnson"
+                    prOwner: "David Lee"
+                    potentialReviewers:
+                      - "Bob Smith"
+                      - "Carol White"
+                      - "Eve Martinez"
+
+        '404':
+          description: Pull request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "PR_NOT_FOUND"
+                message: "Pull request '456' does not exist in repository"
+                retryable: false
+
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "AUTH_FAILED"
+                message: "Invalid credentials for Git provider"
+                retryable: false
+
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "RATE_LIMIT_EXCEEDED"
+                message: "Git provider rate limit exceeded. Retry after 60 seconds."
+                retryable: true
+                retryAfterSeconds: 60
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "INTERNAL_ERROR"
+                message: "Git provider API returned 500: Internal Server Error"
+                retryable: true
+
+  /pullrequests/{prId}/merge:
+    post:
+      tags:
+        - Pull Requests
+      operationId: mergePR
+      summary: Merge pull request to target branch
+      description: |
+        Merges a pull request using specified merge strategy.
+
+        **Merge Strategies**:
+        - `squash`: Squashes all commits into one (required for feature→development per Constitution II)
+        - `merge`: Preserves full commit history (required for development→release per Constitution II)
+
+        **Conflict Handling**: Returns conflict details if merge fails due to conflicts.
+        **Idempotency**: Safe to retry if network fails (checks if PR already merged).
+
+      parameters:
+        - name: prId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Pull request ID or number
+          example: "456"
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - strategy
+              properties:
+                strategy:
+                  type: string
+                  enum: [squash, merge]
+                  description: Merge strategy (squash for feature→dev, merge for dev→release)
+                  example: squash
+                message:
+                  type: string
+                  description: |
+                    Commit message for merge.
+                    **Squash merge format**: `[TICKET-ID] Summary` (required per Constitution II)
+                  example: "[PROJ-456] Add user authentication feature"
+
+      responses:
+        '200':
+          description: PR merged successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MergeResult'
+              examples:
+                squash_success:
+                  summary: Successful squash merge
+                  value:
+                    success: true
+                    commitSha: "a1b2c3d4e5f6"
+                    squashed: true
+                merge_conflict:
+                  summary: Merge failed due to conflicts
+                  value:
+                    success: false
+                    conflict:
+                      ticketId: "PROJ-456"
+                      conflictedFiles:
+                        - "src/auth/login.ts"
+                        - "src/auth/middleware.ts"
+                      conflictAnalysis:
+                        confidenceScore: 72.5
+                        reasoning: "Conflicting changes in authentication logic require manual review"
+                        riskFactors:
+                          - "Both branches modified the same authentication function"
+                          - "Schema changes detected in auth middleware"
+                        shouldEscalate: true
+                      resolutionSuggestion: "Manually merge authentication logic, prioritizing security requirements"
+
+        '409':
+          description: Merge conflict detected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MergeResult'
+
+        '400':
+          description: Invalid merge request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "INVALID_MERGE_STRATEGY"
+                message: "Squash merge requires commit message in format '[TICKET-ID] Summary'"
+                retryable: false
+
+        '404':
+          description: Pull request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /branches:
+    post:
+      tags:
+        - Branches
+      operationId: createBranch
+      summary: Create new branch from source branch
+      description: |
+        Creates a new Git branch from an existing source branch.
+
+        **Use Case**: Creating release branches (e.g., `release/v1.2.0`) from `development`.
+        **GitFlow Compliance**: Enforces naming conventions (release/, hotfix/, feature/).
+        **Idempotency**: Returns existing branch if already created.
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - fromBranch
+              properties:
+                name:
+                  type: string
+                  description: New branch name (must follow GitFlow naming conventions)
+                  example: "release/v1.2.0"
+                fromBranch:
+                  type: string
+                  description: Source branch to create from
+                  example: "development"
+
+      responses:
+        '201':
+          description: Branch created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchInfo'
+              example:
+                name: "release/v1.2.0"
+                commitSha: "f6e5d4c3b2a1"
+                createdAt: "2025-10-19T14:30:00Z"
+                protected: false
+
+        '200':
+          description: Branch already exists (idempotent response)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BranchInfo'
+
+        '400':
+          description: Invalid branch name or source branch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "INVALID_BRANCH_NAME"
+                message: "Branch name 'invalid-name' does not follow GitFlow conventions (release/, hotfix/, feature/)"
+                retryable: false
+
+        '404':
+          description: Source branch not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: "SOURCE_BRANCH_NOT_FOUND"
+                message: "Source branch 'development' does not exist"
+                retryable: false
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /branches/conflicts:
+    post:
+      tags:
+        - Conflicts
+      operationId: detectConflicts
+      summary: Detect merge conflicts between branches
+      description: |
+        Performs dry-run merge to detect conflicts without modifying branches.
+
+        **Use Case**: Pre-merge validation to identify conflicts before actual merge operation.
+        **AI Integration**: Conflict details fed to AI for auto-resolution analysis (95% confidence threshold).
+        **Performance**: < 10 seconds for typical repositories with up to 1000 files.
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceBranch
+                - targetBranch
+              properties:
+                sourceBranch:
+                  type: string
+                  description: Source branch to merge from
+                  example: "feature/PROJ-456-auth"
+                targetBranch:
+                  type: string
+                  description: Target branch to merge into
+                  example: "development"
+
+      responses:
+        '200':
+          description: Conflict detection completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictInfo'
+              examples:
+                no_conflicts:
+                  summary: No conflicts detected
+                  value:
+                    ticketId: "PROJ-456"
+                    conflictedFiles: []
+                conflicts_detected:
+                  summary: Conflicts detected with AI analysis
+                  value:
+                    ticketId: "PROJ-456"
+                    conflictedFiles:
+                      - "src/auth/login.ts"
+                      - "src/auth/middleware.ts"
+                    conflictAnalysis:
+                      confidenceScore: 92.3
+                      reasoning: "Import reordering conflict detected. Safe to auto-resolve by alphabetizing imports."
+                      riskFactors:
+                        - "Minor formatting differences in import statements"
+                      shouldEscalate: true
+                      recommendedResolution: null
+                    resolutionSuggestion: "Auto-resolve by sorting imports alphabetically"
+                    escalatedAt: null
+                    resolvedAt: null
+
+        '400':
+          description: Invalid branch names
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '404':
+          description: Branch not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /pullrequests/{prId}/reviewers/suggest:
+    get:
+      tags:
+        - Reviewers
+      operationId: suggestReviewers
+      summary: Suggest potential PR reviewers
+      description: |
+        Analyzes file history and contributor patterns to suggest relevant reviewers for a PR.
+
+        **Algorithm**:
+        1. Identify files changed in PR
+        2. Find recent contributors to those files (last 90 days)
+        3. Rank by number of relevant commits
+        4. Exclude current approvers and PR owner
+        5. Return top 5 candidates
+
+        **Use Case**: Included in approval notifications to help PR owner find suitable reviewers.
+
+      parameters:
+        - name: prId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Pull request ID or number
+          example: "456"
+
+      responses:
+        '200':
+          description: Reviewer suggestions generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prId:
+                    type: string
+                  suggestedReviewers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        email:
+                          type: string
+                        relevantCommits:
+                          type: integer
+                          description: Number of commits to files changed in this PR
+              example:
+                prId: "456"
+                suggestedReviewers:
+                  - name: "Bob Smith"
+                    email: "bob.smith@example.com"
+                    relevantCommits: 15
+                  - name: "Carol White"
+                    email: "carol.white@example.com"
+                    relevantCommits: 8
+                  - name: "Eve Martinez"
+                    email: "eve.martinez@example.com"
+                    relevantCommits: 5
+
+        '404':
+          description: Pull request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    PRApprovalStatus:
+      type: object
+      description: Pull request approval status (from data-model.md Ticket entity)
+      required:
+        - prId
+        - approvalCount
+        - requiredApprovals
+        - approved
+        - approvers
+        - prOwner
+        - potentialReviewers
+      properties:
+        prId:
+          type: string
+          description: Pull request ID
+          example: "456"
+        approvalCount:
+          type: integer
+          description: Current number of approvals
+          minimum: 0
+          example: 2
+        requiredApprovals:
+          type: integer
+          description: Required approval count (default 2 per Constitution II)
+          minimum: 1
+          default: 2
+          example: 2
+        approved:
+          type: boolean
+          description: Whether PR meets approval threshold
+          example: true
+        approvers:
+          type: array
+          description: List of users who approved the PR
+          items:
+            type: string
+          example:
+            - "Alice Johnson"
+            - "Bob Smith"
+        prOwner:
+          type: string
+          description: PR author/owner name
+          example: "David Lee"
+        potentialReviewers:
+          type: array
+          description: Suggested reviewers if approvals insufficient (empty if approved=true)
+          items:
+            type: string
+          example:
+            - "Carol White"
+            - "Eve Martinez"
+
+    MergeResult:
+      type: object
+      description: Result of PR merge operation (from data-model.md Ticket entity)
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          description: Whether merge succeeded
+          example: true
+        commitSha:
+          type: string
+          description: Commit SHA of merge commit (present if success=true)
+          example: "a1b2c3d4e5f6"
+        squashed:
+          type: boolean
+          description: Whether merge used squash strategy
+          example: true
+        conflict:
+          $ref: '#/components/schemas/ConflictInfo'
+          description: Conflict details if merge failed (present if success=false)
+
+    BranchInfo:
+      type: object
+      description: Git branch information (from research.md IGitProvider interface)
+      required:
+        - name
+        - commitSha
+        - createdAt
+        - protected
+      properties:
+        name:
+          type: string
+          description: Branch name
+          example: "release/v1.2.0"
+        commitSha:
+          type: string
+          description: Latest commit SHA on this branch
+          example: "f6e5d4c3b2a1"
+        createdAt:
+          type: string
+          format: date-time
+          description: Branch creation timestamp (ISO 8601, UTC)
+          example: "2025-10-19T14:30:00Z"
+        protected:
+          type: boolean
+          description: Whether branch has protection rules
+          example: false
+
+    ConflictInfo:
+      type: object
+      description: Merge conflict details (from data-model.md ConflictInfo entity)
+      required:
+        - ticketId
+        - conflictedFiles
+      properties:
+        ticketId:
+          type: string
+          description: Associated JIRA ticket ID
+          example: "PROJ-456"
+        conflictedFiles:
+          type: array
+          description: List of file paths with conflicts
+          items:
+            type: string
+          minItems: 0
+          example:
+            - "src/auth/login.ts"
+            - "src/auth/middleware.ts"
+        conflictAnalysis:
+          $ref: '#/components/schemas/ConflictAnalysis'
+          description: AI analysis of conflicts (if auto-resolution attempted)
+        resolutionSuggestion:
+          type: string
+          description: Suggested resolution approach
+          maxLength: 500
+          example: "Manually merge authentication logic, prioritizing security requirements"
+        escalatedAt:
+          type: string
+          format: date-time
+          description: When conflict was escalated to PR owner (ISO 8601, UTC)
+          example: "2025-10-19T14:35:00Z"
+        resolvedAt:
+          type: string
+          format: date-time
+          description: When conflict was manually resolved (ISO 8601, UTC)
+          example: "2025-10-19T15:10:00Z"
+
+    ConflictAnalysis:
+      type: object
+      description: AI-powered conflict analysis (from data-model.md ConflictAnalysis entity)
+      required:
+        - confidenceScore
+        - reasoning
+        - riskFactors
+        - shouldEscalate
+      properties:
+        confidenceScore:
+          type: number
+          format: float
+          description: AI confidence in auto-resolution safety (0-100)
+          minimum: 0
+          maximum: 100
+          example: 92.3
+        recommendedResolution:
+          type: string
+          description: Auto-resolved content if confidence >= 95% (Constitution I)
+          maxLength: 10000
+          example: null
+        reasoning:
+          type: string
+          description: AI explanation for decision
+          maxLength: 1000
+          example: "Import reordering conflict detected. Safe to auto-resolve by alphabetizing imports."
+        riskFactors:
+          type: array
+          description: Identified risk factors
+          items:
+            type: string
+            maxLength: 200
+          example:
+            - "Minor formatting differences in import statements"
+        shouldEscalate:
+          type: boolean
+          description: Whether to escalate to human (confidence < 95%)
+          example: true
+
+    Error:
+      type: object
+      description: Structured error response for all error scenarios
+      required:
+        - code
+        - message
+        - retryable
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code
+          example: "PR_NOT_FOUND"
+        message:
+          type: string
+          description: Human-readable error description
+          example: "Pull request '456' does not exist in repository"
+        retryable:
+          type: boolean
+          description: Whether this error is transient and can be retried
+          example: false
+        retryAfterSeconds:
+          type: integer
+          description: Seconds to wait before retry (for rate limits)
+          example: 60
+        diagnosticContext:
+          type: object
+          description: Additional debugging information (sanitized, no credentials)
+          additionalProperties: true
+          example:
+            provider: "bitbucket"
+            statusCode: 404
+            endpoint: "/repositories/{workspace}/{repo}/pullrequests/456"
+
+  securitySchemes:
+    BitbucketAppPassword:
+      type: http
+      scheme: basic
+      description: Bitbucket username + app password (initial implementation)
+    GitHubPAT:
+      type: http
+      scheme: bearer
+      description: GitHub Personal Access Token (future support)
+    GitLabOAuth:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://gitlab.com/oauth/authorize
+          tokenUrl: https://gitlab.com/oauth/token
+          scopes:
+            api: Full API access
+      description: GitLab OAuth 2.0 (future support)
+
+security:
+  - BitbucketAppPassword: []
+  - GitHubPAT: []
+  - GitLabOAuth: [api]

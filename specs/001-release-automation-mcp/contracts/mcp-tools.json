@@ -1,0 +1,1431 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Release Automation MCP Tools Schema",
+  "version": "1.0.0",
+  "description": "Comprehensive JSON schema definitions for all MCP server tools in the release automation system",
+  "tools": [
+    {
+      "name": "jira_get_release_tickets",
+      "version": "1.0.0",
+      "description": "Fetches all JIRA tickets tagged for a specific release version with PR information, approval status, and merge status. Returns ticket metadata required for merge phase validation.",
+      "idempotent": true,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "release_version": {
+            "type": "string",
+            "description": "Release version identifier (e.g., 'v1.2.0' or 'hotfix/v1.1.1')",
+            "pattern": "^(v\\d+\\.\\d+\\.\\d+|hotfix/v\\d+\\.\\d+\\.\\d+)$"
+          },
+          "include_pr_details": {
+            "type": "boolean",
+            "description": "Whether to fetch detailed PR information including approvals and conflicts",
+            "default": true
+          }
+        },
+        "required": ["release_version"]
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "release_version": {
+            "type": "string",
+            "description": "The release version queried"
+          },
+          "tickets": {
+            "type": "array",
+            "description": "List of tickets associated with this release",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "JIRA ticket ID (e.g., 'PROJ-123')",
+                  "pattern": "^[A-Z]+-\\d+$"
+                },
+                "summary": {
+                  "type": "string",
+                  "description": "Ticket summary/title",
+                  "maxLength": 255
+                },
+                "pr_id": {
+                  "type": "string",
+                  "description": "Pull request ID or number"
+                },
+                "pr_url": {
+                  "type": "string",
+                  "description": "Full URL to pull request",
+                  "format": "uri"
+                },
+                "pr_owner_email": {
+                  "type": "string",
+                  "description": "Email of PR author",
+                  "format": "email"
+                },
+                "approval_count": {
+                  "type": "integer",
+                  "description": "Current number of PR approvals",
+                  "minimum": 0
+                },
+                "required_approvals": {
+                  "type": "integer",
+                  "description": "Required approval count",
+                  "default": 2
+                },
+                "approved": {
+                  "type": "boolean",
+                  "description": "Whether PR meets approval threshold (approval_count >= required_approvals)"
+                },
+                "approvers": {
+                  "type": "array",
+                  "description": "List of approver names/emails",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "merge_status": {
+                  "type": "string",
+                  "description": "Current merge status",
+                  "enum": ["pending", "merged", "blocked", "failed"]
+                },
+                "conflicts_detected": {
+                  "type": "boolean",
+                  "description": "Whether merge conflicts exist"
+                }
+              },
+              "required": ["id", "summary", "pr_id", "pr_url", "pr_owner_email", "approval_count", "approved", "merge_status"]
+            }
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Total number of tickets found",
+            "minimum": 0
+          }
+        },
+        "required": ["release_version", "tickets", "total_count"]
+      },
+      "error_codes": [
+        {
+          "code": "JIRA_CONNECTION_ERROR",
+          "description": "Failed to connect to JIRA API",
+          "retryable": true
+        },
+        {
+          "code": "RELEASE_VERSION_NOT_FOUND",
+          "description": "No tickets found for specified release version",
+          "retryable": false
+        },
+        {
+          "code": "INVALID_RELEASE_VERSION_FORMAT",
+          "description": "Release version does not match expected pattern",
+          "retryable": false
+        },
+        {
+          "code": "JIRA_AUTHENTICATION_ERROR",
+          "description": "Invalid JIRA API credentials",
+          "retryable": false
+        }
+      ]
+    },
+    {
+      "name": "git_check_pr_approvals",
+      "version": "1.0.0",
+      "description": "Checks if a pull request has the minimum required approvals (default: 2) before merge. Returns approval status, current approvers, PR owner, and list of potential reviewers if approvals are insufficient.",
+      "idempotent": true,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "pr_id": {
+            "type": "string",
+            "description": "Pull request ID or number (e.g., '123' or 'PR-456')"
+          },
+          "required_approvals": {
+            "type": "integer",
+            "description": "Override required approval count (default: 2 from constitution)",
+            "minimum": 1,
+            "default": 2
+          }
+        },
+        "required": ["pr_id"]
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "pr_id": {
+            "type": "string",
+            "description": "The pull request ID checked"
+          },
+          "approval_count": {
+            "type": "integer",
+            "description": "Current number of approvals",
+            "minimum": 0
+          },
+          "required_approvals": {
+            "type": "integer",
+            "description": "Required approval threshold",
+            "default": 2
+          },
+          "approved": {
+            "type": "boolean",
+            "description": "Whether PR meets approval threshold"
+          },
+          "approvers": {
+            "type": "array",
+            "description": "List of users who approved the PR",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pr_owner": {
+            "type": "string",
+            "description": "PR author's email or username"
+          },
+          "pr_owner_email": {
+            "type": "string",
+            "description": "PR author's email address",
+            "format": "email"
+          },
+          "potential_reviewers": {
+            "type": "array",
+            "description": "Suggested reviewers if approvals insufficient (empty if approved)",
+            "items": {
+              "type": "string"
+            }
+          },
+          "pr_url": {
+            "type": "string",
+            "description": "Full URL to the pull request",
+            "format": "uri"
+          }
+        },
+        "required": ["pr_id", "approval_count", "required_approvals", "approved", "approvers", "pr_owner", "pr_owner_email", "potential_reviewers"]
+      },
+      "error_codes": [
+        {
+          "code": "PR_NOT_FOUND",
+          "description": "Pull request does not exist",
+          "retryable": false
+        },
+        {
+          "code": "GIT_CONNECTION_ERROR",
+          "description": "Failed to connect to Git platform API",
+          "retryable": true
+        },
+        {
+          "code": "GIT_AUTHENTICATION_ERROR",
+          "description": "Invalid Git platform API credentials",
+          "retryable": false
+        },
+        {
+          "code": "PERMISSION_DENIED",
+          "description": "Insufficient permissions to access PR details",
+          "retryable": false
+        }
+      ]
+    },
+    {
+      "name": "git_merge_tickets_to_development",
+      "version": "1.0.0",
+      "description": "Merges ticket feature branches to development branch following GitFlow with squash merge strategy for clean commit history. Each squash commit uses format '[TICKET-ID] Summary'. Attempts auto-resolution of conflicts if enabled, returns list of merged tickets and any conflicts requiring manual intervention.",
+      "idempotent": true,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "ticket_ids": {
+            "type": "array",
+            "description": "List of JIRA ticket IDs to merge (e.g., ['PROJ-123', 'PROJ-124'])",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]+-\\d+$"
+            },
+            "minItems": 1
+          },
+          "merge_strategy": {
+            "type": "string",
+            "description": "Merge strategy: 'squash' for feature→development (clean history), 'merge' for development→release (full history)",
+            "enum": ["squash", "merge"],
+            "default": "squash"
+          },
+          "squash_commit_messages": {
+            "type": "object",
+            "description": "Map of ticket_id to squash commit message (format: '[TICKET-ID] Summary'). Required when merge_strategy is 'squash'.",
+            "additionalProperties": {
+              "type": "string",
+              "pattern": "^\\[[A-Z]+-\\d+\\] .+$"
+            }
+          },
+          "auto_resolve_conflicts": {
+            "type": "boolean",
+            "description": "Attempt automatic conflict resolution with 95% confidence threshold",
+            "default": true
+          },
+          "target_branch": {
+            "type": "string",
+            "description": "Target branch name (default: 'development')",
+            "default": "development"
+          }
+        },
+        "required": ["ticket_ids"]
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "merged": {
+            "type": "array",
+            "description": "Successfully merged tickets",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ticket_id": {
+                  "type": "string",
+                  "description": "JIRA ticket ID"
+                },
+                "commit_sha": {
+                  "type": "string",
+                  "description": "Commit SHA of the merge"
+                },
+                "squashed": {
+                  "type": "boolean",
+                  "description": "Whether squash merge was used"
+                },
+                "commit_message": {
+                  "type": "string",
+                  "description": "The commit message used"
+                }
+              },
+              "required": ["ticket_id", "commit_sha", "squashed"]
+            }
+          },
+          "conflicts": {
+            "type": "array",
+            "description": "Tickets with unresolved conflicts requiring manual intervention",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ticket_id": {
+                  "type": "string",
+                  "description": "JIRA ticket ID"
+                },
+                "files": {
+                  "type": "array",
+                  "description": "List of file paths with conflicts",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "owner": {
+                  "type": "string",
+                  "description": "PR owner email for escalation"
+                },
+                "pr_url": {
+                  "type": "string",
+                  "description": "URL to the pull request",
+                  "format": "uri"
+                },
+                "auto_resolution_attempted": {
+                  "type": "boolean",
+                  "description": "Whether auto-resolution was attempted"
+                },
+                "confidence_score": {
+                  "type": "number",
+                  "description": "AI confidence score (0-100) if auto-resolution attempted",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "resolution_suggestion": {
+                  "type": "string",
+                  "description": "Suggested resolution approach",
+                  "maxLength": 500
+                }
+              },
+              "required": ["ticket_id", "files", "owner"]
+            }
+          },
+          "total_requested": {
+            "type": "integer",
+            "description": "Total number of tickets requested to merge",
+            "minimum": 0
+          },
+          "total_merged": {
+            "type": "integer",
+            "description": "Number of tickets successfully merged",
+            "minimum": 0
+          },
+          "total_conflicts": {
+            "type": "integer",
+            "description": "Number of tickets with conflicts",
+            "minimum": 0
+          }
+        },
+        "required": ["merged", "conflicts", "total_requested", "total_merged", "total_conflicts"]
+      },
+      "error_codes": [
+        {
+          "code": "BRANCH_NOT_FOUND",
+          "description": "Feature branch for ticket does not exist",
+          "retryable": false
+        },
+        {
+          "code": "TARGET_BRANCH_NOT_FOUND",
+          "description": "Target branch (development) does not exist",
+          "retryable": false
+        },
+        {
+          "code": "INSUFFICIENT_APPROVALS",
+          "description": "PR does not meet minimum approval requirement (2 approvals)",
+          "retryable": false
+        },
+        {
+          "code": "MERGE_CONFLICT_UNRESOLVED",
+          "description": "Merge conflicts exist and auto-resolution confidence < 95%",
+          "retryable": false
+        },
+        {
+          "code": "GIT_CONNECTION_ERROR",
+          "description": "Failed to connect to Git platform API",
+          "retryable": true
+        },
+        {
+          "code": "INVALID_SQUASH_MESSAGE_FORMAT",
+          "description": "Squash commit message does not match required format '[TICKET-ID] Summary'",
+          "retryable": false
+        }
+      ]
+    },
+    {
+      "name": "git_create_release_branch",
+      "version": "1.0.0",
+      "description": "Creates a release branch from development branch following GitFlow naming convention (release/vX.Y.Z). Preserves full commit history from development (no squash). Returns branch name and commit SHA.",
+      "idempotent": true,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "Release version number (e.g., 'v1.2.0')",
+            "pattern": "^v\\d+\\.\\d+\\.\\d+$"
+          },
+          "source_branch": {
+            "type": "string",
+            "description": "Source branch to create release from (default: 'development')",
+            "default": "development"
+          },
+          "release_type": {
+            "type": "string",
+            "description": "Type of release: regular uses 'release/' prefix, hotfix uses 'hotfix/' prefix",
+            "enum": ["regular", "hotfix"],
+            "default": "regular"
+          }
+        },
+        "required": ["version"]
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "branch_name": {
+            "type": "string",
+            "description": "Full branch name created (e.g., 'release/v1.2.0' or 'hotfix/v1.1.1')"
+          },
+          "commit_sha": {
+            "type": "string",
+            "description": "Commit SHA at branch creation point"
+          },
+          "source_branch": {
+            "type": "string",
+            "description": "Source branch used"
+          },
+          "created": {
+            "type": "boolean",
+            "description": "Whether branch was newly created (false if already existed)"
+          },
+          "ticket_count": {
+            "type": "integer",
+            "description": "Number of commits included in this release branch",
+            "minimum": 0
+          }
+        },
+        "required": ["branch_name", "commit_sha", "source_branch", "created"]
+      },
+      "error_codes": [
+        {
+          "code": "SOURCE_BRANCH_NOT_FOUND",
+          "description": "Source branch does not exist",
+          "retryable": false
+        },
+        {
+          "code": "INVALID_VERSION_FORMAT",
+          "description": "Version does not match semantic versioning pattern",
+          "retryable": false
+        },
+        {
+          "code": "BRANCH_ALREADY_EXISTS",
+          "description": "Release branch with this version already exists (returns existing branch details)",
+          "retryable": false
+        },
+        {
+          "code": "GIT_CONNECTION_ERROR",
+          "description": "Failed to connect to Git platform API",
+          "retryable": true
+        },
+        {
+          "code": "PERMISSION_DENIED",
+          "description": "Insufficient permissions to create branch",
+          "retryable": false
+        }
+      ]
+    },
+    {
+      "name": "jenkins_trigger_deployment",
+      "version": "1.0.0",
+      "description": "Triggers Jenkins deployment job for a specific tenant and release version. Returns job queue ID and initial status. Supports parallel tenant deployments with independent failure handling.",
+      "idempotent": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Target tenant identifier (e.g., 'tenant-a')",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+          },
+          "release_version": {
+            "type": "string",
+            "description": "Release version to deploy (e.g., 'v1.2.0')",
+            "pattern": "^(v\\d+\\.\\d+\\.\\d+|hotfix/v\\d+\\.\\d+\\.\\d+)$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Target deployment environment",
+            "enum": ["Integration", "UAT", "UAT1", "PROD"]
+          },
+          "jenkins_job_parameters": {
+            "type": "object",
+            "description": "Additional Jenkins job parameters (e.g., build configuration)",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "release_type": {
+            "type": "string",
+            "description": "Type of release: regular (cannot deploy to PROD) or hotfix (can deploy to PROD)",
+            "enum": ["regular", "hotfix"]
+          }
+        },
+        "required": ["tenant_id", "release_version", "environment", "release_type"]
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "deployment_id": {
+            "type": "string",
+            "description": "Unique deployment identifier (UUID)",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "description": "Tenant identifier"
+          },
+          "jenkins_queue_id": {
+            "type": "integer",
+            "description": "Jenkins queue item ID"
+          },
+          "jenkins_job_name": {
+            "type": "string",
+            "description": "Jenkins job name triggered"
+          },
+          "jenkins_job_url": {
+            "type": "string",
+            "description": "URL to Jenkins job console",
+            "format": "uri"
+          },
+          "status": {
+            "type": "string",
+            "description": "Initial deployment status",
+            "enum": ["queued", "running", "success", "failed", "error"]
+          },
+          "triggered_at": {
+            "type": "string",
+            "description": "Timestamp when job was triggered (ISO 8601 UTC)",
+            "format": "date-time"
+          }
+        },
+        "required": ["deployment_id", "tenant_id", "jenkins_queue_id", "jenkins_job_name", "status", "triggered_at"]
+      },
+      "error_codes": [
+        {
+          "code": "TENANT_NOT_FOUND",
+          "description": "Tenant configuration does not exist for specified environment",
+          "retryable": false
+        },
+        {
+          "code": "ENVIRONMENT_NOT_ALLOWED",
+          "description": "Regular releases cannot deploy to PROD environment (use hotfix branch)",
+          "retryable": false
+        },
+        {
+          "code": "JENKINS_CONNECTION_ERROR",
+          "description": "Failed to connect to Jenkins API",
+          "retryable": true
+        },
+        {
+          "code": "JENKINS_JOB_NOT_FOUND",
+          "description": "Jenkins job for tenant does not exist",
+          "retryable": false
+        },
+        {
+          "code": "JENKINS_AUTHENTICATION_ERROR",
+          "description": "Invalid Jenkins API credentials",
+          "retryable": false
+        },
+        {
+          "code": "JENKINS_QUEUE_FULL",
+          "description": "Jenkins queue is full, retry after delay",
+          "retryable": true
+        }
+      ]
+    },
+    {
+      "name": "jenkins_get_job_status",
+      "version": "1.0.0",
+      "description": "Retrieves current status of one or more Jenkins deployment jobs. Returns execution status, duration, error messages, and cache clearing status as reported by Jenkins job execution. Used for polling deployment progress.",
+      "idempotent": true,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "deployment_ids": {
+            "type": "array",
+            "description": "List of deployment IDs to check status for",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1
+          },
+          "include_console_output": {
+            "type": "boolean",
+            "description": "Whether to include last 50 lines of console output for debugging",
+            "default": false
+          }
+        },
+        "required": ["deployment_ids"]
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "deployments": {
+            "type": "array",
+            "description": "Status information for each deployment",
+            "items": {
+              "type": "object",
+              "properties": {
+                "deployment_id": {
+                  "type": "string",
+                  "description": "Deployment identifier",
+                  "format": "uuid"
+                },
+                "tenant_id": {
+                  "type": "string",
+                  "description": "Tenant identifier"
+                },
+                "jenkins_build_number": {
+                  "type": "integer",
+                  "description": "Jenkins build number (null if still queued)"
+                },
+                "jenkins_job_url": {
+                  "type": "string",
+                  "description": "URL to Jenkins job console",
+                  "format": "uri"
+                },
+                "status": {
+                  "type": "string",
+                  "description": "Current deployment status",
+                  "enum": ["queued", "running", "success", "failed", "error"]
+                },
+                "started_at": {
+                  "type": "string",
+                  "description": "Job start timestamp (ISO 8601 UTC, null if queued)",
+                  "format": "date-time"
+                },
+                "completed_at": {
+                  "type": "string",
+                  "description": "Job completion timestamp (ISO 8601 UTC, null if not completed)",
+                  "format": "date-time"
+                },
+                "duration_ms": {
+                  "type": "integer",
+                  "description": "Deployment duration in milliseconds (null if not completed)",
+                  "minimum": 0
+                },
+                "error_message": {
+                  "type": "string",
+                  "description": "Error description if status is failed or error",
+                  "maxLength": 1000
+                },
+                "console_output_tail": {
+                  "type": "string",
+                  "description": "Last 50 lines of console output (if requested)",
+                  "maxLength": 5000
+                },
+                "cache_clear_status": {
+                  "type": "string",
+                  "description": "Cache clearing status as reported by Jenkins job",
+                  "enum": ["cleared", "skipped", "failed", "pending"]
+                },
+                "retry_count": {
+                  "type": "integer",
+                  "description": "Number of retry attempts",
+                  "minimum": 0,
+                  "maximum": 1
+                }
+              },
+              "required": ["deployment_id", "tenant_id", "status", "cache_clear_status", "retry_count"]
+            }
+          },
+          "total_queried": {
+            "type": "integer",
+            "description": "Total number of deployments queried",
+            "minimum": 0
+          }
+        },
+        "required": ["deployments", "total_queried"]
+      },
+      "error_codes": [
+        {
+          "code": "DEPLOYMENT_NOT_FOUND",
+          "description": "One or more deployment IDs do not exist",
+          "retryable": false
+        },
+        {
+          "code": "JENKINS_CONNECTION_ERROR",
+          "description": "Failed to connect to Jenkins API",
+          "retryable": true
+        },
+        {
+          "code": "JENKINS_AUTHENTICATION_ERROR",
+          "description": "Invalid Jenkins API credentials",
+          "retryable": false
+        }
+      ]
+    },
+    {
+      "name": "jenkins_rollback_tenant",
+      "version": "1.0.0",
+      "description": "Triggers rollback deployment for a specific tenant to previous release version. Supports per-tenant rollback without affecting other tenants. Must complete within 15 minutes of original deployment per constitution.",
+      "idempotent": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "Target tenant identifier",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Target deployment environment",
+            "enum": ["Integration", "UAT", "UAT1", "PROD"]
+          },
+          "previous_version": {
+            "type": "string",
+            "description": "Previous release version to rollback to (e.g., 'v1.1.0')",
+            "pattern": "^v\\d+\\.\\d+\\.\\d+$"
+          },
+          "rollback_reason": {
+            "type": "string",
+            "description": "Reason for rollback (e.g., 'critical production error', 'failed health checks')",
+            "maxLength": 500
+          }
+        },
+        "required": ["tenant_id", "environment", "previous_version", "rollback_reason"]
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "rollback_id": {
+            "type": "string",
+            "description": "Unique rollback deployment identifier (UUID)",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "description": "Tenant identifier"
+          },
+          "jenkins_queue_id": {
+            "type": "integer",
+            "description": "Jenkins queue item ID for rollback job"
+          },
+          "jenkins_job_url": {
+            "type": "string",
+            "description": "URL to Jenkins rollback job console",
+            "format": "uri"
+          },
+          "status": {
+            "type": "string",
+            "description": "Initial rollback status",
+            "enum": ["queued", "running"]
+          },
+          "triggered_at": {
+            "type": "string",
+            "description": "Timestamp when rollback was triggered (ISO 8601 UTC)",
+            "format": "date-time"
+          },
+          "target_version": {
+            "type": "string",
+            "description": "Version being rolled back to"
+          }
+        },
+        "required": ["rollback_id", "tenant_id", "jenkins_queue_id", "status", "triggered_at", "target_version"]
+      },
+      "error_codes": [
+        {
+          "code": "TENANT_NOT_FOUND",
+          "description": "Tenant configuration does not exist",
+          "retryable": false
+        },
+        {
+          "code": "ROLLBACK_NOT_SUPPORTED",
+          "description": "Tenant does not support automated rollback",
+          "retryable": false
+        },
+        {
+          "code": "PREVIOUS_VERSION_NOT_FOUND",
+          "description": "Previous version does not exist or was never deployed",
+          "retryable": false
+        },
+        {
+          "code": "JENKINS_CONNECTION_ERROR",
+          "description": "Failed to connect to Jenkins API",
+          "retryable": true
+        },
+        {
+          "code": "ROLLBACK_WINDOW_EXPIRED",
+          "description": "Rollback must be triggered within 30 minutes of deployment",
+          "retryable": false
+        }
+      ]
+    },
+    {
+      "name": "jira_update_ticket_status",
+      "version": "1.0.0",
+      "description": "Updates JIRA ticket status after successful or partial deployment. Supports batch updates for multiple tickets. Retries with exponential backoff on transient failures without blocking deployment workflow.",
+      "idempotent": true,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "ticket_ids": {
+            "type": "array",
+            "description": "List of JIRA ticket IDs to update (e.g., ['PROJ-123', 'PROJ-124'])",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]+-\\d+$"
+            },
+            "minItems": 1
+          },
+          "new_status": {
+            "type": "string",
+            "description": "Target JIRA status (e.g., 'Deployed', 'Partially Deployed')",
+            "enum": ["Deployed", "Partially Deployed", "Failed", "Rolled Back"]
+          },
+          "deployment_details": {
+            "type": "object",
+            "description": "Additional deployment context to add as comment",
+            "properties": {
+              "environment": {
+                "type": "string",
+                "description": "Deployment environment",
+                "enum": ["Integration", "UAT", "UAT1", "PROD"]
+              },
+              "release_version": {
+                "type": "string",
+                "description": "Release version deployed"
+              },
+              "deployed_tenants": {
+                "type": "array",
+                "description": "List of successfully deployed tenants",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "failed_tenants": {
+                "type": "array",
+                "description": "List of tenants that failed deployment",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "deployment_timestamp": {
+                "type": "string",
+                "description": "Deployment completion timestamp (ISO 8601 UTC)",
+                "format": "date-time"
+              }
+            }
+          },
+          "add_comment": {
+            "type": "boolean",
+            "description": "Whether to add deployment details as JIRA comment",
+            "default": true
+          }
+        },
+        "required": ["ticket_ids", "new_status"]
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "array",
+            "description": "Successfully updated tickets",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ticket_id": {
+                  "type": "string",
+                  "description": "JIRA ticket ID"
+                },
+                "previous_status": {
+                  "type": "string",
+                  "description": "Previous JIRA status"
+                },
+                "new_status": {
+                  "type": "string",
+                  "description": "New JIRA status"
+                },
+                "comment_added": {
+                  "type": "boolean",
+                  "description": "Whether deployment comment was added"
+                }
+              },
+              "required": ["ticket_id", "previous_status", "new_status"]
+            }
+          },
+          "failed": {
+            "type": "array",
+            "description": "Tickets that failed to update",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ticket_id": {
+                  "type": "string",
+                  "description": "JIRA ticket ID"
+                },
+                "error_message": {
+                  "type": "string",
+                  "description": "Reason for failure"
+                },
+                "retryable": {
+                  "type": "boolean",
+                  "description": "Whether this failure is retryable"
+                }
+              },
+              "required": ["ticket_id", "error_message", "retryable"]
+            }
+          },
+          "total_requested": {
+            "type": "integer",
+            "description": "Total number of tickets requested to update",
+            "minimum": 0
+          },
+          "total_updated": {
+            "type": "integer",
+            "description": "Number of tickets successfully updated",
+            "minimum": 0
+          },
+          "total_failed": {
+            "type": "integer",
+            "description": "Number of tickets that failed to update",
+            "minimum": 0
+          }
+        },
+        "required": ["updated", "failed", "total_requested", "total_updated", "total_failed"]
+      },
+      "error_codes": [
+        {
+          "code": "JIRA_CONNECTION_ERROR",
+          "description": "Failed to connect to JIRA API (retried with exponential backoff)",
+          "retryable": true
+        },
+        {
+          "code": "TICKET_NOT_FOUND",
+          "description": "One or more tickets do not exist",
+          "retryable": false
+        },
+        {
+          "code": "INVALID_STATUS_TRANSITION",
+          "description": "Status transition not allowed by JIRA workflow",
+          "retryable": false
+        },
+        {
+          "code": "JIRA_AUTHENTICATION_ERROR",
+          "description": "Invalid JIRA API credentials",
+          "retryable": false
+        },
+        {
+          "code": "PERMISSION_DENIED",
+          "description": "Insufficient permissions to update ticket status",
+          "retryable": false
+        }
+      ]
+    },
+    {
+      "name": "teams_notify_pr_owner",
+      "version": "1.0.0",
+      "description": "Sends personalized Microsoft Teams notification to PR owner when approvals are insufficient or merge conflicts are detected. Includes actionable context like current approval count, potential reviewers, or conflict file locations.",
+      "idempotent": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "pr_id": {
+            "type": "string",
+            "description": "Pull request ID or number"
+          },
+          "pr_owner_email": {
+            "type": "string",
+            "description": "PR owner's email address for Teams notification",
+            "format": "email"
+          },
+          "notification_type": {
+            "type": "string",
+            "description": "Type of notification to send",
+            "enum": ["approval_required", "conflict_detected"]
+          },
+          "severity": {
+            "type": "string",
+            "description": "Message severity level",
+            "enum": ["info", "warning", "critical"],
+            "default": "warning"
+          },
+          "approval_details": {
+            "type": "object",
+            "description": "Required when notification_type is 'approval_required'",
+            "properties": {
+              "current_approvals": {
+                "type": "integer",
+                "description": "Current number of approvals",
+                "minimum": 0
+              },
+              "required_approvals": {
+                "type": "integer",
+                "description": "Required approval count",
+                "default": 2
+              },
+              "potential_reviewers": {
+                "type": "array",
+                "description": "List of suggested reviewers",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "pr_url": {
+                "type": "string",
+                "description": "Link to pull request",
+                "format": "uri"
+              }
+            },
+            "required": ["current_approvals", "required_approvals", "pr_url"]
+          },
+          "conflict_details": {
+            "type": "object",
+            "description": "Required when notification_type is 'conflict_detected'",
+            "properties": {
+              "conflicted_files": {
+                "type": "array",
+                "description": "List of file paths with conflicts",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 1
+              },
+              "resolution_suggestion": {
+                "type": "string",
+                "description": "Suggested resolution approach",
+                "maxLength": 500
+              },
+              "pr_url": {
+                "type": "string",
+                "description": "Link to pull request",
+                "format": "uri"
+              },
+              "confidence_score": {
+                "type": "number",
+                "description": "AI confidence score if auto-resolution was attempted",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": ["conflicted_files", "pr_url"]
+          }
+        },
+        "required": ["pr_id", "pr_owner_email", "notification_type", "severity"]
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "notification_id": {
+            "type": "string",
+            "description": "Unique notification identifier (UUID)",
+            "format": "uuid"
+          },
+          "pr_id": {
+            "type": "string",
+            "description": "Pull request ID"
+          },
+          "recipient": {
+            "type": "string",
+            "description": "Recipient email address"
+          },
+          "teams_message_id": {
+            "type": "string",
+            "description": "Teams API message ID after delivery"
+          },
+          "delivery_status": {
+            "type": "string",
+            "description": "Message delivery status",
+            "enum": ["pending", "delivered", "failed"]
+          },
+          "delivery_timestamp": {
+            "type": "string",
+            "description": "When message was delivered (ISO 8601 UTC)",
+            "format": "date-time"
+          },
+          "error_message": {
+            "type": "string",
+            "description": "Error description if delivery failed"
+          }
+        },
+        "required": ["notification_id", "pr_id", "recipient", "delivery_status"]
+      },
+      "error_codes": [
+        {
+          "code": "TEAMS_CONNECTION_ERROR",
+          "description": "Failed to connect to Microsoft Teams API",
+          "retryable": true
+        },
+        {
+          "code": "RECIPIENT_NOT_FOUND",
+          "description": "PR owner email not found in Teams directory",
+          "retryable": false
+        },
+        {
+          "code": "TEAMS_AUTHENTICATION_ERROR",
+          "description": "Invalid Teams API credentials",
+          "retryable": false
+        },
+        {
+          "code": "MESSAGE_TOO_LARGE",
+          "description": "Message content exceeds Teams message size limit",
+          "retryable": false
+        },
+        {
+          "code": "RATE_LIMIT_EXCEEDED",
+          "description": "Teams API rate limit exceeded, retry after delay",
+          "retryable": true
+        }
+      ]
+    },
+    {
+      "name": "teams_announce_deployment",
+      "version": "1.0.0",
+      "description": "Sends deployment completion announcement to Teams main channel including release version, ticket count, target environment, per-tenant deployment status (success/failed), per-tenant cache clearing status (cleared/skipped/failed), and completion time. AI generates context-aware summary.",
+      "idempotent": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "release_version": {
+            "type": "string",
+            "description": "Release version deployed (e.g., 'v1.2.0')",
+            "pattern": "^(v\\d+\\.\\d+\\.\\d+|hotfix/v\\d+\\.\\d+\\.\\d+)$"
+          },
+          "environment": {
+            "type": "string",
+            "description": "Target deployment environment",
+            "enum": ["Integration", "UAT", "UAT1", "PROD"]
+          },
+          "ticket_ids": {
+            "type": "array",
+            "description": "List of JIRA tickets included in this release",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z]+-\\d+$"
+            },
+            "minItems": 1
+          },
+          "tenant_statuses": {
+            "type": "array",
+            "description": "Per-tenant deployment status",
+            "items": {
+              "type": "object",
+              "properties": {
+                "tenant_id": {
+                  "type": "string",
+                  "description": "Tenant identifier"
+                },
+                "status": {
+                  "type": "string",
+                  "description": "Deployment status",
+                  "enum": ["success", "failed"]
+                },
+                "cache_clear_status": {
+                  "type": "string",
+                  "description": "Cache clearing status as reported by Jenkins",
+                  "enum": ["cleared", "skipped", "failed"]
+                },
+                "duration_ms": {
+                  "type": "integer",
+                  "description": "Deployment duration in milliseconds",
+                  "minimum": 0
+                },
+                "error_message": {
+                  "type": "string",
+                  "description": "Error description if status is failed"
+                }
+              },
+              "required": ["tenant_id", "status", "cache_clear_status"]
+            },
+            "minItems": 1
+          },
+          "deployment_summary": {
+            "type": "string",
+            "description": "AI-generated summary of deployment (e.g., 'All 10 tenants deployed successfully in 12 minutes')",
+            "maxLength": 500
+          },
+          "severity": {
+            "type": "string",
+            "description": "Announcement severity based on deployment outcome",
+            "enum": ["info", "warning", "critical"],
+            "default": "info"
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "Teams channel ID to post announcement (default: main release channel)"
+          }
+        },
+        "required": ["release_version", "environment", "ticket_ids", "tenant_statuses", "deployment_summary"]
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "notification_id": {
+            "type": "string",
+            "description": "Unique notification identifier (UUID)",
+            "format": "uuid"
+          },
+          "release_version": {
+            "type": "string",
+            "description": "Release version announced"
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "Teams channel ID where announcement was posted"
+          },
+          "teams_message_id": {
+            "type": "string",
+            "description": "Teams API message ID after delivery"
+          },
+          "delivery_status": {
+            "type": "string",
+            "description": "Message delivery status",
+            "enum": ["pending", "delivered", "failed"]
+          },
+          "delivery_timestamp": {
+            "type": "string",
+            "description": "When message was delivered (ISO 8601 UTC)",
+            "format": "date-time"
+          },
+          "error_message": {
+            "type": "string",
+            "description": "Error description if delivery failed"
+          }
+        },
+        "required": ["notification_id", "release_version", "delivery_status"]
+      },
+      "error_codes": [
+        {
+          "code": "TEAMS_CONNECTION_ERROR",
+          "description": "Failed to connect to Microsoft Teams API",
+          "retryable": true
+        },
+        {
+          "code": "CHANNEL_NOT_FOUND",
+          "description": "Specified Teams channel does not exist",
+          "retryable": false
+        },
+        {
+          "code": "TEAMS_AUTHENTICATION_ERROR",
+          "description": "Invalid Teams API credentials",
+          "retryable": false
+        },
+        {
+          "code": "MESSAGE_TOO_LARGE",
+          "description": "Message content exceeds Teams message size limit",
+          "retryable": false
+        },
+        {
+          "code": "RATE_LIMIT_EXCEEDED",
+          "description": "Teams API rate limit exceeded, retry after delay",
+          "retryable": true
+        }
+      ]
+    },
+    {
+      "name": "trigger_release_deployment",
+      "version": "1.0.0",
+      "description": "Main orchestration tool that triggers the complete release deployment workflow. This is the primary entry point for AI agents to initiate a release. Orchestrates all phases: merge, branch creation, deployment, and post-deployment. Returns release ID for status tracking.",
+      "idempotent": false,
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "release_version": {
+            "type": "string",
+            "description": "Release version to deploy (e.g., 'v1.2.0' or 'hotfix/v1.1.1')",
+            "pattern": "^(v\\d+\\.\\d+\\.\\d+|hotfix/v\\d+\\.\\d+\\.\\d+)$"
+          },
+          "release_type": {
+            "type": "string",
+            "description": "Type of release: regular (cannot deploy to PROD) or hotfix (can deploy to PROD)",
+            "enum": ["regular", "hotfix"]
+          },
+          "target_environment": {
+            "type": "string",
+            "description": "Target deployment environment (default from .env configuration)",
+            "enum": ["Integration", "UAT", "UAT1", "PROD"]
+          },
+          "tenant_ids": {
+            "type": "array",
+            "description": "Target tenant IDs for deployment (default: all tenants for environment)",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+            }
+          },
+          "auto_resolve_conflicts": {
+            "type": "boolean",
+            "description": "Whether to attempt automatic conflict resolution with 95% confidence threshold",
+            "default": true
+          },
+          "pause_on_blockers": {
+            "type": "boolean",
+            "description": "Whether to pause workflow when approvals insufficient or conflicts detected (vs. failing immediately)",
+            "default": true
+          },
+          "triggered_by": {
+            "type": "string",
+            "description": "User or system identifier that triggered the release",
+            "maxLength": 255
+          }
+        },
+        "required": ["release_version", "release_type", "triggered_by"]
+      },
+      "output_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "release_id": {
+            "type": "string",
+            "description": "Unique release identifier (UUID) for tracking",
+            "format": "uuid"
+          },
+          "release_version": {
+            "type": "string",
+            "description": "Release version being deployed"
+          },
+          "release_type": {
+            "type": "string",
+            "description": "Type of release",
+            "enum": ["regular", "hotfix"]
+          },
+          "target_environment": {
+            "type": "string",
+            "description": "Deployment environment",
+            "enum": ["Integration", "UAT", "UAT1", "PROD"]
+          },
+          "status": {
+            "type": "string",
+            "description": "Initial release status",
+            "enum": ["pending", "in_progress", "blocked", "completed", "partially_completed", "failed"]
+          },
+          "workflow_execution_id": {
+            "type": "string",
+            "description": "n8n workflow execution ID",
+            "format": "uuid"
+          },
+          "ticket_count": {
+            "type": "integer",
+            "description": "Number of tickets included in this release",
+            "minimum": 0
+          },
+          "tenant_count": {
+            "type": "integer",
+            "description": "Number of tenants targeted for deployment",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": "string",
+            "description": "Release creation timestamp (ISO 8601 UTC)",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "description": "User or system that triggered release"
+          },
+          "estimated_duration_minutes": {
+            "type": "integer",
+            "description": "Estimated completion time in minutes",
+            "minimum": 0
+          }
+        },
+        "required": ["release_id", "release_version", "release_type", "target_environment", "status", "workflow_execution_id", "ticket_count", "tenant_count", "created_at", "created_by"]
+      },
+      "error_codes": [
+        {
+          "code": "RELEASE_VERSION_NOT_FOUND",
+          "description": "No tickets found in JIRA for specified release version",
+          "retryable": false
+        },
+        {
+          "code": "ENVIRONMENT_NOT_ALLOWED",
+          "description": "Regular releases cannot deploy to PROD environment (use hotfix branch)",
+          "retryable": false
+        },
+        {
+          "code": "TENANT_CONFIGURATION_MISSING",
+          "description": "One or more tenants not configured for target environment",
+          "retryable": false
+        },
+        {
+          "code": "WORKFLOW_ORCHESTRATION_ERROR",
+          "description": "Failed to start n8n workflow execution",
+          "retryable": true
+        },
+        {
+          "code": "INVALID_RELEASE_TYPE",
+          "description": "Release type must be 'regular' or 'hotfix'",
+          "retryable": false
+        },
+        {
+          "code": "DUPLICATE_RELEASE_IN_PROGRESS",
+          "description": "Another release with same version is already in progress",
+          "retryable": false
+        }
+      ]
+    }
+  ]
+}
