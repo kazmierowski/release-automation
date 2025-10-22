@@ -97,11 +97,11 @@
 
 ### Data Model Entities for User Story 1
 
-- [ ] T038 [P] [US1] Create Release entity type definition in /home/kamil/code/release-automation/mcp-server/src/models/release.ts with fields: id, version, release_type, target_environment, ticket_ids, tenant_ids, status, created_at, audit_trail
-- [ ] T039 [P] [US1] Create Ticket entity type definition in /home/kamil/code/release-automation/mcp-server/src/models/ticket.ts with fields: id, pr_id, approval_count, approvers, merge_status, conflicts_detected
-- [ ] T040 [P] [US1] Create Deployment entity type definition in /home/kamil/code/release-automation/mcp-server/src/models/deployment.ts with fields: id, release_id, tenant_id, environment_name, jenkins_job_name, status, cache_clear_status
-- [ ] T041 [P] [US1] Create Environment entity type definition in /home/kamil/code/release-automation/mcp-server/src/models/environment.ts with fields: name, display_name, is_default, allowed_release_types, tenant_configurations
-- [ ] T042 [P] [US1] Create AuditEvent entity type definition in /home/kamil/code/release-automation/mcp-server/src/models/audit-event.ts with fields: id, release_id, timestamp, event_type, actor, status, diagnostic_context
+- [x] T038 [P] [US1] Create Release entity type definition in /home/kamil/code/release-automation/mcp-server/src/models/release.ts with fields: id, version, release_type, target_environment, ticket_ids, tenant_ids, status, created_at, audit_trail
+- [x] T039 [P] [US1] Create Ticket entity type definition in /home/kamil/code/release-automation/mcp-server/src/models/ticket.ts with fields: id, pr_id, approval_count, approvers, merge_status, conflicts_detected
+- [x] T040 [P] [US1] Create Deployment entity type definition in /home/kamil/code/release-automation/mcp-server/src/models/deployment.ts with fields: id, release_id, tenant_id, environment_name, jenkins_job_name, status, cache_clear_status
+- [x] T041 [P] [US1] Create Environment entity type definition in /home/kamil/code/release-automation/mcp-server/src/models/environment.ts with fields: name, display_name, is_default, allowed_release_types, tenant_configurations
+- [x] T042 [P] [US1] Create AuditEvent entity type definition in /home/kamil/code/release-automation/mcp-server/src/models/audit-event.ts with fields: id, release_id, timestamp, event_type, actor, status, diagnostic_context
 
 ### MCP Tool Implementations for User Story 1
 
