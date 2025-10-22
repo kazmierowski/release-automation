@@ -1,0 +1,50 @@
+# Environment Configuration for Release Automation
+# Defines deployment target environments and their constraints
+
+environments:
+  - name: Integration
+    display_name: "Integration Environment"
+    is_default: true
+    allowed_release_types:
+      - regular
+      - hotfix
+    git_base_url: "https://bitbucket.org"
+    jenkins_base_url: "https://jenkins-integration.example.com"
+    jira_base_url: "https://your-company.atlassian.net"
+    description: "Integration testing environment - default target for regular releases"
+
+  - name: UAT
+    display_name: "User Acceptance Testing"
+    is_default: false
+    allowed_release_types:
+      - regular
+      - hotfix
+    git_base_url: "https://bitbucket.org"
+    jenkins_base_url: "https://jenkins-uat.example.com"
+    jira_base_url: "https://your-company.atlassian.net"
+    description: "User acceptance testing environment"
+
+  - name: UAT1
+    display_name: "UAT1 Environment"
+    is_default: false
+    allowed_release_types:
+      - regular
+      - hotfix
+    git_base_url: "https://bitbucket.org"
+    jenkins_base_url: "https://jenkins-uat1.example.com"
+    jira_base_url: "https://your-company.atlassian.net"
+    description: "Secondary UAT environment"
+
+  - name: PROD
+    display_name: "Production"
+    is_default: false
+    allowed_release_types:
+      - hotfix
+    git_base_url: "https://bitbucket.org"
+    jenkins_base_url: "https://jenkins-prod.example.com"
+    jira_base_url: "https://your-company.atlassian.net"
+    description: "Production environment - ONLY accessible via hotfix releases"
+    restrictions:
+      - "Regular releases (release/*) are BLOCKED from PROD per Constitution II"
+      - "Only hotfix releases (hotfix/*) can deploy to PROD"
+      - "Requires elevated privileges and audit trail"

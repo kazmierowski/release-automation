@@ -1,0 +1,42 @@
+{
+  "description": "Test fixtures for timeout scenarios",
+  "scenarios": {
+    "jenkins_build_timeout": {
+      "scenario": "Jenkins build exceeds maximum polling time",
+      "jenkins_poll_interval_ms": 1000,
+      "jenkins_poll_max_attempts": 3,
+      "expected_timeout_after_ms": 3000,
+      "build_status": "running"
+    },
+    "jira_api_slow_response": {
+      "scenario": "JIRA API responds slowly (>30s)",
+      "request_timeout_ms": 30000,
+      "simulated_delay_ms": 35000,
+      "should_timeout": true
+    },
+    "git_merge_timeout": {
+      "scenario": "Git merge operation exceeds timeout",
+      "operation_timeout_ms": 60000,
+      "simulated_delay_ms": 65000,
+      "should_timeout": true
+    },
+    "workflow_execution_timeout": {
+      "scenario": "n8n workflow execution exceeds maximum duration",
+      "max_workflow_duration_ms": 600000,
+      "phases": [
+        {"phase": "merge", "duration_ms": 120000},
+        {"phase": "branch_creation", "duration_ms": 30000},
+        {"phase": "deployment", "duration_ms": 480000},
+        {"phase": "jira_update", "duration_ms": 60000}
+      ],
+      "total_duration_ms": 690000,
+      "should_timeout": true
+    },
+    "cache_secret_expired": {
+      "scenario": "Cached secret expires during operation",
+      "cache_ttl_ms": 300000,
+      "time_since_cached_ms": 310000,
+      "should_refetch": true
+    }
+  }
+}

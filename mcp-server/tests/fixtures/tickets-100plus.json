@@ -1,0 +1,17 @@
+{
+  "description": "Test fixture for 100+ ticket batching scenario",
+  "release_version": "v2.0.0",
+  "tickets": [
+    {"id": "PROJ-1", "summary": "Fix authentication bug", "pr_id": "1", "pr_url": "https://bitbucket.org/workspace/repo/pull-requests/1", "approved": true},
+    {"id": "PROJ-2", "summary": "Add user profile page", "pr_id": "2", "pr_url": "https://bitbucket.org/workspace/repo/pull-requests/2", "approved": true},
+    {"id": "PROJ-3", "summary": "Update API documentation", "pr_id": "3", "pr_url": "https://bitbucket.org/workspace/repo/pull-requests/3", "approved": true},
+    {"id": "PROJ-4", "summary": "Improve performance", "pr_id": "4", "pr_url": "https://bitbucket.org/workspace/repo/pull-requests/4", "approved": true},
+    {"id": "PROJ-5", "summary": "Fix CSS alignment", "pr_id": "5", "pr_url": "https://bitbucket.org/workspace/repo/pull-requests/5", "approved": true},
+    {"id": "PROJ-6", "summary": "Add logging", "pr_id": "6", "pr_url": "https://bitbucket.org/workspace/repo/pull-requests/6", "approved": true},
+    {"id": "PROJ-7", "summary": "Security patch", "pr_id": "7", "pr_url": "https://bitbucket.org/workspace/repo/pull-requests/7", "approved": true},
+    {"id": "PROJ-8", "summary": "Database migration", "pr_id": "8", "pr_url": "https://bitbucket.org/workspace/repo/pull-requests/8", "approved": true},
+    {"id": "PROJ-9", "summary": "Add tests", "pr_id": "9", "pr_url": "https://bitbucket.org/workspace/repo/pull-requests/9", "approved": true},
+    {"id": "PROJ-10", "summary": "Update dependencies", "pr_id": "10", "pr_url": "https://bitbucket.org/workspace/repo/pull-requests/10", "approved": true}
+  ],
+  "note": "This fixture contains 10 representative tickets. For 100+ ticket testing, duplicate and modify ticket IDs programmatically in test code."
+}

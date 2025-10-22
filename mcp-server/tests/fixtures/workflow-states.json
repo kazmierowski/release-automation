@@ -1,0 +1,92 @@
+{
+  "description": "Test fixtures for n8n workflow interruption scenarios",
+  "scenarios": {
+    "workflow_interrupted_at_merge": {
+      "workflow_id": "wf-001",
+      "execution_id": "exec-001",
+      "release_id": "rel-001",
+      "release_version": "v1.5.0",
+      "status": "failed",
+      "current_phase": "merge",
+      "phases_completed": [],
+      "error_message": "Workflow interrupted: PR merge failed due to conflicts",
+      "is_retryable": false,
+      "tickets_merged": [],
+      "tickets_pending": ["PROJ-101", "PROJ-102", "PROJ-103"]
+    },
+    "workflow_interrupted_at_deployment": {
+      "workflow_id": "wf-002",
+      "execution_id": "exec-002",
+      "release_id": "rel-002",
+      "release_version": "v1.6.0",
+      "status": "failed",
+      "current_phase": "deployment",
+      "phases_completed": ["merge", "branch_creation"],
+      "error_message": "Workflow interrupted: Jenkins deployment failed for tenant-b",
+      "is_retryable": true,
+      "tickets_merged": ["PROJ-201", "PROJ-202"],
+      "branch_created": "release/v1.6.0",
+      "deployments": [
+        {"tenant": "tenant-a", "status": "success"},
+        {"tenant": "tenant-b", "status": "failed", "error": "Build timeout"},
+        {"tenant": "tenant-c", "status": "queued"}
+      ]
+    },
+    "workflow_partially_completed": {
+      "workflow_id": "wf-003",
+      "execution_id": "exec-003",
+      "release_id": "rel-003",
+      "release_version": "v1.7.0",
+      "status": "partially_completed",
+      "current_phase": "notification",
+      "phases_completed": ["merge", "branch_creation", "deployment", "jira_update"],
+      "error_message": null,
+      "is_retryable": false,
+      "tickets_merged": ["PROJ-301", "PROJ-302", "PROJ-303"],
+      "branch_created": "release/v1.7.0",
+      "deployments": [
+        {"tenant": "tenant-a", "status": "success"},
+        {"tenant": "tenant-b", "status": "success"},
+        {"tenant": "tenant-c", "status": "failed", "error": "Deployment script error"},
+        {"tenant": "tenant-d", "status": "success"}
+      ],
+      "jira_updates": [
+        {"ticket_id": "PROJ-301", "status": "Deployed", "success": true},
+        {"ticket_id": "PROJ-302", "status": "Deployed", "success": true},
+        {"ticket_id": "PROJ-303", "status": "Deployed", "success": true}
+      ]
+    },
+    "workflow_waiting_for_approvals": {
+      "workflow_id": "wf-004",
+      "execution_id": "exec-004",
+      "release_id": "rel-004",
+      "release_version": "v1.8.0",
+      "status": "waiting",
+      "current_phase": "merge",
+      "phases_completed": [],
+      "error_message": null,
+      "is_retryable": false,
+      "tickets_pending_approval": [
+        {"ticket_id": "PROJ-401", "approvals": 1, "required": 2},
+        {"ticket_id": "PROJ-402", "approvals": 0, "required": 2}
+      ]
+    },
+    "workflow_cancelled_by_user": {
+      "workflow_id": "wf-005",
+      "execution_id": "exec-005",
+      "release_id": "rel-005",
+      "release_version": "v1.9.0",
+      "status": "cancelled",
+      "current_phase": "deployment",
+      "phases_completed": ["merge", "branch_creation"],
+      "error_message": "Workflow cancelled by user: admin@example.com",
+      "is_retryable": false,
+      "tickets_merged": ["PROJ-501"],
+      "branch_created": "release/v1.9.0",
+      "deployments": [
+        {"tenant": "tenant-a", "status": "running"}
+      ],
+      "cancellation_reason": "User requested rollback due to critical bug discovered"
+    }
+  }
+}

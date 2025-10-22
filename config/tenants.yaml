@@ -1,0 +1,118 @@
+# Tenant Configuration for Multi-Tenant Deployment Orchestration
+# Defines platform tenants and their environment-specific configurations
+
+tenants:
+  - id: tenant-a
+    display_name: "Tenant A"
+    description: "Primary production tenant"
+    active: true
+    rollback_supported: true
+    environments:
+      Integration:
+        jenkins_job_name: "deploy-tenant-a-integration"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-a"
+          ENVIRONMENT: "Integration"
+      UAT:
+        jenkins_job_name: "deploy-tenant-a-uat"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-a"
+          ENVIRONMENT: "UAT"
+      UAT1:
+        jenkins_job_name: "deploy-tenant-a-uat1"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-a"
+          ENVIRONMENT: "UAT1"
+      PROD:
+        jenkins_job_name: "deploy-tenant-a-prod"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-a"
+          ENVIRONMENT: "PROD"
+
+  - id: tenant-b
+    display_name: "Tenant B"
+    description: "Secondary production tenant"
+    active: true
+    rollback_supported: true
+    environments:
+      Integration:
+        jenkins_job_name: "deploy-tenant-b-integration"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-b"
+          ENVIRONMENT: "Integration"
+      UAT:
+        jenkins_job_name: "deploy-tenant-b-uat"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-b"
+          ENVIRONMENT: "UAT"
+      UAT1:
+        jenkins_job_name: "deploy-tenant-b-uat1"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-b"
+          ENVIRONMENT: "UAT1"
+      PROD:
+        jenkins_job_name: "deploy-tenant-b-prod"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-b"
+          ENVIRONMENT: "PROD"
+
+  - id: tenant-c
+    display_name: "Tenant C"
+    description: "Development tenant (no PROD access)"
+    active: true
+    rollback_supported: true
+    environments:
+      Integration:
+        jenkins_job_name: "deploy-tenant-c-integration"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-c"
+          ENVIRONMENT: "Integration"
+      UAT:
+        jenkins_job_name: "deploy-tenant-c-uat"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-c"
+          ENVIRONMENT: "UAT"
+      UAT1:
+        jenkins_job_name: "deploy-tenant-c-uat1"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-c"
+          ENVIRONMENT: "UAT1"
+
+  - id: tenant-d
+    display_name: "Tenant D"
+    description: "Staging tenant"
+    active: true
+    rollback_supported: false
+    environments:
+      Integration:
+        jenkins_job_name: "deploy-tenant-d-integration"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-d"
+          ENVIRONMENT: "Integration"
+      UAT:
+        jenkins_job_name: "deploy-tenant-d-uat"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-d"
+          ENVIRONMENT: "UAT"
+
+  - id: tenant-e
+    display_name: "Tenant E"
+    description: "QA tenant"
+    active: true
+    rollback_supported: true
+    environments:
+      Integration:
+        jenkins_job_name: "deploy-tenant-e-integration"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-e"
+          ENVIRONMENT: "Integration"
+      UAT:
+        jenkins_job_name: "deploy-tenant-e-uat"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-e"
+          ENVIRONMENT: "UAT"
+      UAT1:
+        jenkins_job_name: "deploy-tenant-e-uat1"
+        jenkins_job_parameters:
+          TENANT_ID: "tenant-e"
+          ENVIRONMENT: "UAT1"

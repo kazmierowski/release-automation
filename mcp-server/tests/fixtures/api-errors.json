@@ -1,0 +1,61 @@
+{
+  "description": "Test fixtures for API failure scenarios",
+  "scenarios": {
+    "jenkins_unavailable": {
+      "error_code": "ECONNREFUSED",
+      "message": "connect ECONNREFUSED 10.0.0.1:8080",
+      "retryable": true
+    },
+    "jenkins_timeout": {
+      "error_code": "ETIMEDOUT",
+      "message": "Jenkins request timed out after 60000ms",
+      "retryable": true
+    },
+    "jenkins_500": {
+      "status": 500,
+      "message": "Internal Server Error",
+      "retryable": true
+    },
+    "jira_rate_limited": {
+      "status": 429,
+      "message": "Rate limit exceeded. Retry after 60 seconds",
+      "headers": {
+        "retry-after": "60"
+      },
+      "retryable": true
+    },
+    "jira_unauthorized": {
+      "status": 401,
+      "message": "Unauthorized - invalid API token",
+      "retryable": false
+    },
+    "bitbucket_pr_not_found": {
+      "status": 404,
+      "message": "Pull request not found",
+      "retryable": false
+    },
+    "bitbucket_merge_conflict": {
+      "status": 409,
+      "message": "Merge conflicts detected",
+      "conflicted_files": ["src/app.ts", "config/settings.json"],
+      "retryable": false
+    },
+    "teams_user_not_found": {
+      "status": 404,
+      "message": "User not found: user@example.com",
+      "retryable": false
+    },
+    "azure_keyvault_secret_not_found": {
+      "code": "SecretNotFound",
+      "status": 404,
+      "message": "Secret 'jenkins-api-token' not found in Key Vault",
+      "retryable": false
+    },
+    "azure_keyvault_forbidden": {
+      "code": "Forbidden",
+      "status": 403,
+      "message": "Insufficient permissions to access secret",
+      "retryable": false
+    }
+  }
+}
