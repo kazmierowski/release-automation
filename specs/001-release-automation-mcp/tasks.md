@@ -105,20 +105,20 @@
 
 ### MCP Tool Implementations for User Story 1
 
-- [ ] T043 [US1] Implement jira_get_release_tickets MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/jira/get-release-tickets.ts using jira.js client with JQL query, PR details fetching (depends on T038, T039)
-- [ ] T044 [US1] Implement git_check_pr_approvals MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/git/check-pr-approvals.ts using BitbucketProvider, return approval status, potential reviewers (depends on T015, T039)
-- [ ] T045 [US1] Implement git_merge_tickets_to_development MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/git/merge-to-development.ts with squash merge strategy, squash commit message format validation '[TICKET-ID] Summary' (depends on T015, T039)
-- [ ] T046 [US1] Implement git_create_release_branch MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/git/create-release-branch.ts with full history preservation, GitFlow naming (release/vX.Y.Z or hotfix/vX.Y.Z) (depends on T015, T038)
-- [ ] T047 [US1] Implement jenkins_trigger_deployment MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/jenkins/trigger-deployment.ts with parallel tenant job triggering, environment validation (depends on T022, T040)
-- [ ] T048 [US1] Implement jenkins_get_job_status MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/jenkins/get-job-status.ts with polling logic, cache_clear_status extraction from Jenkins job (depends on T022, T040)
-- [ ] T049 [US1] Implement jira_update_ticket_status MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/jira/update-ticket-status.ts with batch processing (chunks of 10), transition validation (depends on T023, T039)
-- [ ] T050 [US1] Implement teams_announce_deployment MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/teams/announce-deployment.ts with adaptive card formatting, environment, tenant status, cache status display (depends on T024)
-- [ ] T051 [US1] Implement trigger_release_deployment orchestration MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/trigger-release-deployment.ts that validates environment, release type restrictions (regular → no PROD, hotfix → any env), and initiates workflow (depends on T038, T041)
+- [x] T043 [US1] Implement jira_get_release_tickets MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/jira/get-release-tickets.ts using jira.js client with JQL query, PR details fetching (depends on T038, T039)
+- [x] T044 [US1] Implement git_check_pr_approvals MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/git/check-pr-approvals.ts using BitbucketProvider, return approval status, potential reviewers (depends on T015, T039)
+- [x] T045 [US1] Implement git_merge_tickets_to_development MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/git/merge-to-development.ts with squash merge strategy, squash commit message format validation '[TICKET-ID] Summary' (depends on T015, T039)
+- [x] T046 [US1] Implement git_create_release_branch MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/git/create-release-branch.ts with full history preservation, GitFlow naming (release/vX.Y.Z or hotfix/vX.Y.Z) (depends on T015, T038)
+- [x] T047 [US1] Implement jenkins_trigger_deployment MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/jenkins/trigger-deployment.ts with parallel tenant job triggering, environment validation (depends on T022, T040)
+- [x] T048 [US1] Implement jenkins_get_job_status MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/jenkins/get-job-status.ts with polling logic, cache_clear_status extraction from Jenkins job (depends on T022, T040)
+- [x] T049 [US1] Implement jira_update_ticket_status MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/jira/update-ticket-status.ts with batch processing (chunks of 10), transition validation (depends on T023, T039)
+- [x] T050 [US1] Implement teams_announce_deployment MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/teams/announce-deployment.ts with adaptive card formatting, environment, tenant status, cache status display (depends on T024)
+- [x] T051 [US1] Implement trigger_release_deployment orchestration MCP tool in /home/kamil/code/release-automation/mcp-server/src/tools/trigger-release-deployment.ts that validates environment, release type restrictions (regular → no PROD, hotfix → any env), and initiates workflow (depends on T038, T041)
 
 ### Environment & Release Type Validation for User Story 1
 
-- [ ] T052 [US1] Implement release type environment validator in /home/kamil/code/release-automation/mcp-server/src/services/release-validator.ts that enforces regular releases cannot deploy to PROD, hotfix releases can deploy to any environment including PROD (depends on T038, T041)
-- [ ] T053 [US1] Implement default environment resolver in /home/kamil/code/release-automation/mcp-server/src/services/environment-resolver.ts that reads DEFAULT_ENVIRONMENT from .env and allows explicit override (depends on T010, T041)
+- [x] T052 [US1] Implement release type environment validator in /home/kamil/code/release-automation/mcp-server/src/services/release-validator.ts that enforces regular releases cannot deploy to PROD, hotfix releases can deploy to any environment including PROD (depends on T038, T041)
+- [x] T053 [US1] Implement default environment resolver in /home/kamil/code/release-automation/mcp-server/src/services/environment-resolver.ts that reads DEFAULT_ENVIRONMENT from .env and allows explicit override (depends on T010, T041)
 
 ### n8n Workflow for User Story 1
 
@@ -127,8 +127,8 @@
 
 ### Audit Logging for User Story 1
 
-- [ ] T056 [US1] Implement audit logger service in /home/kamil/code/release-automation/mcp-server/src/services/audit-logger.ts that logs all MCP tool invocations with structured JSON (timestamp, actor, event_type, status, affected_entities) to append-only log file (depends on T042)
-- [ ] T057 [US1] Add audit event hooks to all US1 MCP tools (jira_get_release_tickets, git_check_pr_approvals, git_merge_tickets_to_development, git_create_release_branch, jenkins_trigger_deployment, jenkins_get_job_status, jira_update_ticket_status, teams_announce_deployment) in respective tool files (depends on T056)
+- [x] T056 [US1] Implement audit logger service in /home/kamil/code/release-automation/mcp-server/src/services/audit-logger.ts that logs all MCP tool invocations with structured JSON (timestamp, actor, event_type, status, affected_entities) to append-only log file (depends on T042)
+- [x] T057 [US1] Add audit event hooks to all US1 MCP tools (jira_get_release_tickets, git_check_pr_approvals, git_merge_tickets_to_development, git_create_release_branch, jenkins_trigger_deployment, jenkins_get_job_status, jira_update_ticket_status, teams_announce_deployment) in respective tool files (depends on T056)
 
 **Checkpoint**: User Story 1 COMPLETE - Regular releases can be triggered to Integration/UAT/UAT1 with full automation from merge to deployment notification. PROD is correctly restricted. Independent test scenarios from spec.md can now be validated.
 
