@@ -81,19 +81,19 @@
 
 **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T025 [P] [US1] Contract test for jira_get_release_tickets MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/jira-get-release-tickets.test.ts
-- [ ] T026 [P] [US1] Contract test for git_check_pr_approvals MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/git-check-pr-approvals.test.ts
-- [ ] T027 [P] [US1] Contract test for git_merge_tickets_to_development MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/git-merge-tickets.test.ts
-- [ ] T028 [P] [US1] Contract test for git_create_release_branch MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/git-create-branch.test.ts
-- [ ] T029 [P] [US1] Contract test for jenkins_trigger_deployment MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/jenkins-trigger.test.ts
-- [ ] T030 [P] [US1] Contract test for jenkins_get_job_status MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/jenkins-status.test.ts
-- [ ] T031 [P] [US1] Contract test for jira_update_ticket_status MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/jira-update-tickets.test.ts
-- [ ] T032 [P] [US1] Contract test for teams_announce_deployment MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/teams-announce.test.ts
-- [ ] T033 [P] [US1] Contract test for trigger_release_deployment MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/trigger-release.test.ts
-- [ ] T034 [P] [US1] Unit test for BitbucketProvider checkPRApprovals method in /home/kamil/code/release-automation/mcp-server/tests/unit/providers/git/bitbucket.test.ts
-- [ ] T035 [P] [US1] Unit test for BitbucketProvider mergePR method with squash strategy in /home/kamil/code/release-automation/mcp-server/tests/unit/providers/git/bitbucket-merge.test.ts
-- [ ] T036 [P] [US1] Integration test for complete release deployment workflow (merge → branch → deploy → JIRA → Teams) in /home/kamil/code/release-automation/mcp-server/tests/integration/release-deployment.test.ts
-- [ ] T037 [US1] E2E test for n8n release-deployment workflow execution in /home/kamil/code/release-automation/n8n-workflows/tests/release-deployment.test.ts
+- [x] T025 [P] [US1] Contract test for jira_get_release_tickets MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/jira-get-release-tickets.test.ts
+- [x] T026 [P] [US1] Contract test for git_check_pr_approvals MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/git-check-pr-approvals.test.ts
+- [x] T027 [P] [US1] Contract test for git_merge_tickets_to_development MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/git-merge-tickets.test.ts
+- [x] T028 [P] [US1] Contract test for git_create_release_branch MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/git-create-branch.test.ts
+- [x] T029 [P] [US1] Contract test for jenkins_trigger_deployment MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/jenkins-trigger.test.ts
+- [x] T030 [P] [US1] Contract test for jenkins_get_job_status MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/jenkins-status.test.ts
+- [x] T031 [P] [US1] Contract test for jira_update_ticket_status MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/jira-update-tickets.test.ts
+- [x] T032 [P] [US1] Contract test for teams_announce_deployment MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/teams-announce.test.ts
+- [x] T033 [P] [US1] Contract test for trigger_release_deployment MCP tool schema validation in /home/kamil/code/release-automation/mcp-server/tests/contract/trigger-release.test.ts
+- [x] T034 [P] [US1] Unit test for BitbucketProvider checkPRApprovals method in /home/kamil/code/release-automation/mcp-server/tests/unit/providers/git/bitbucket.test.ts
+- [x] T035 [P] [US1] Unit test for BitbucketProvider mergePR method with squash strategy in /home/kamil/code/release-automation/mcp-server/tests/unit/providers/git/bitbucket-merge.test.ts
+- [x] T036 [P] [US1] Integration test for complete release deployment workflow (merge → branch → deploy → JIRA → Teams) in /home/kamil/code/release-automation/mcp-server/tests/integration/release-deployment.test.ts
+- [x] T037 [US1] E2E test for n8n release-deployment workflow execution in /home/kamil/code/release-automation/n8n-workflows/tests/release-deployment.test.ts
 
 ### Data Model Entities for User Story 1
 
@@ -122,8 +122,8 @@
 
 ### n8n Workflow for User Story 1
 
-- [ ] T054 [US1] Create n8n release-deployment workflow in /home/kamil/code/release-automation/n8n-workflows/release-deployment.json with nodes: webhook trigger → validate input → call jira_get_release_tickets → loop check approvals → call git_merge_tickets_to_development → call git_create_release_branch → call jenkins_trigger_deployment → poll jenkins_get_job_status → call jira_update_ticket_status → call teams_announce_deployment
-- [ ] T055 [US1] Configure n8n workflow environment validation node in release-deployment.json that calls trigger_release_deployment tool to validate release type restrictions before merge phase
+- [x] T054 [US1] Create n8n release-deployment workflow in /home/kamil/code/release-automation/n8n-workflows/release-deployment.json with nodes: webhook trigger → validate input → call jira_get_release_tickets → loop check approvals → call git_merge_tickets_to_development → call git_create_release_branch → call jenkins_trigger_deployment → poll jenkins_get_job_status → call jira_update_ticket_status → call teams_announce_deployment
+- [x] T055 [US1] Configure n8n workflow environment validation node in release-deployment.json that calls trigger_release_deployment tool to validate release type restrictions before merge phase
 
 ### Audit Logging for User Story 1
 

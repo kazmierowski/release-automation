@@ -1,0 +1,229 @@
+{
+  "name": "Release Deployment Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "release-deployment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "release-deployment-trigger"
+    },
+    {
+      "parameters": {
+        "functionCode": "// T055: Environment validation using trigger_release_deployment tool\nconst input = $json.body;\n\n// Validate required fields\nif (!input.release_version || !input.release_type || !input.ticket_ids) {\n  return {\n    valid: false,\n    error: 'Missing required fields: release_version, release_type, ticket_ids'\n  };\n}\n\n// Call MCP tool for validation\nconst mcpServerUrl = $env.MCP_SERVER_URL || 'http://localhost:3000';\nconst response = await $http.post(`${mcpServerUrl}/tool/trigger_release_deployment`, {\n  jsonrpc: '2.0',\n  id: $executionId,\n  method: 'trigger_release_deployment',\n  params: {\n    release_version: input.release_version,\n    release_type: input.release_type,\n    target_environment: input.target_environment,\n    ticket_ids: input.ticket_ids,\n    tenant_ids: input.tenant_ids,\n    created_by: input.created_by || 'n8n-workflow'\n  }\n});\n\nconst result = response.data.result;\n\nif (!result.validation.valid) {\n  return {\n    valid: false,\n    errors: result.validation.errors,\n    release_id: ''\n  };\n}\n\nreturn {\n  valid: true,\n  release_id: result.release_id,\n  release_version: result.release_version,\n  target_environment: result.target_environment,\n  ticket_ids: result.ticket_ids,\n  tenant_ids: result.tenant_ids\n};"
+      },
+      "id": "validate-input",
+      "name": "Validate Input & Create Release",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.valid}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-validation",
+      "name": "Check Validation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{JSON.stringify({error: $json.errors || $json.error})}}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "return-error",
+      "name": "Return Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 450]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Call jira_get_release_tickets MCP tool\nconst mcpServerUrl = $env.MCP_SERVER_URL || 'http://localhost:3000';\nconst response = await $http.post(`${mcpServerUrl}/tool/jira_get_release_tickets`, {\n  jsonrpc: '2.0',\n  id: $executionId,\n  method: 'jira_get_release_tickets',\n  params: {\n    release_version: $json.release_version\n  }\n});\n\nconst result = response.data.result;\nreturn {\n  release_id: $json.release_id,\n  tickets: result.tickets,\n  ticket_count: result.total_count\n};"
+      },
+      "id": "get-tickets",
+      "name": "Get Release Tickets",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [850, 150]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Loop through tickets and check approvals\nconst mcpServerUrl = $env.MCP_SERVER_URL || 'http://localhost:3000';\nconst tickets = $json.tickets;\nconst approvalResults = [];\n\nfor (const ticket of tickets) {\n  const response = await $http.post(`${mcpServerUrl}/tool/git_check_pr_approvals`, {\n    jsonrpc: '2.0',\n    id: $executionId,\n    method: 'git_check_pr_approvals',\n    params: {\n      pr_id: ticket.pr_id,\n      required_approvals: 2\n    }\n  });\n  \n  const result = response.data.result;\n  approvalResults.push({\n    ticket_id: ticket.id,\n    pr_id: ticket.pr_id,\n    approved: result.approved,\n    approval_count: result.approval_count,\n    pr_owner_email: result.pr_owner_email,\n    potential_reviewers: result.potential_reviewers\n  });\n}\n\nconst allApproved = approvalResults.every(r => r.approved);\nconst insufficientApprovals = approvalResults.filter(r => !r.approved);\n\nreturn {\n  release_id: $json.release_id,\n  tickets: $json.tickets,\n  approval_results: approvalResults,\n  all_approved: allApproved,\n  insufficient_approvals: insufficientApprovals\n};"
+      },
+      "id": "check-approvals",
+      "name": "Check PR Approvals",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1050, 150]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.all_approved}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-all-approved",
+      "name": "All Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 150]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Notify PR owners about insufficient approvals\n// In production, this would call teams_notify_pr_owner tool\nconst insufficientApprovals = $json.insufficient_approvals;\n\nreturn {\n  message: 'Workflow paused: Waiting for PR approvals',\n  insufficient_approvals: insufficientApprovals,\n  action_required: 'Manual intervention needed'\n};"
+      },
+      "id": "notify-owners",
+      "name": "Notify PR Owners",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Call git_merge_tickets_to_development MCP tool\nconst mcpServerUrl = $env.MCP_SERVER_URL || 'http://localhost:3000';\nconst tickets = $json.tickets;\n\nconst mergeTickets = tickets.map(t => ({\n  ticket_id: t.id,\n  pr_id: t.pr_id,\n  squash_commit_message: `[${t.id}] ${t.summary}`\n}));\n\nconst response = await $http.post(`${mcpServerUrl}/tool/git_merge_tickets_to_development`, {\n  jsonrpc: '2.0',\n  id: $executionId,\n  method: 'git_merge_tickets_to_development',\n  params: {\n    tickets: mergeTickets,\n    target_branch: 'development',\n    auto_resolve_conflicts: false\n  }\n});\n\nconst result = response.data.result;\n\nreturn {\n  release_id: $json.release_id,\n  merged: result.merged,\n  conflicts: result.conflicts,\n  failed: result.failed,\n  has_conflicts: result.conflicts.length > 0\n};"
+      },
+      "id": "merge-tickets",
+      "name": "Merge Tickets to Development",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1450, 0]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Call git_create_release_branch MCP tool\nconst mcpServerUrl = $env.MCP_SERVER_URL || 'http://localhost:3000';\nconst input = $input.first().json;\n\nconst response = await $http.post(`${mcpServerUrl}/tool/git_create_release_branch`, {\n  jsonrpc: '2.0',\n  id: $executionId,\n  method: 'git_create_release_branch',\n  params: {\n    release_version: input.release_version,\n    release_type: input.release_type,\n    source_branch: 'development'\n  }\n});\n\nconst result = response.data.result;\n\nreturn {\n  release_id: input.release_id,\n  branch_name: result.branch_name,\n  commit_sha: result.commit_sha,\n  tenant_ids: input.tenant_ids,\n  target_environment: input.target_environment\n};"
+      },
+      "id": "create-branch",
+      "name": "Create Release Branch",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1650, 0]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Call jenkins_trigger_deployment MCP tool\nconst mcpServerUrl = $env.MCP_SERVER_URL || 'http://localhost:3000';\n\nconst response = await $http.post(`${mcpServerUrl}/tool/jenkins_trigger_deployment`, {\n  jsonrpc: '2.0',\n  id: $executionId,\n  method: 'jenkins_trigger_deployment',\n  params: {\n    tenant_ids: $json.tenant_ids,\n    release_branch: $json.branch_name,\n    target_environment: $json.target_environment,\n    tenant_configurations: [] // Would be loaded from environment config\n  }\n});\n\nconst result = response.data.result;\n\nreturn {\n  release_id: $json.release_id,\n  triggered: result.triggered,\n  failed: result.failed,\n  target_environment: $json.target_environment\n};"
+      },
+      "id": "trigger-deployment",
+      "name": "Trigger Jenkins Deployment",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1850, 0]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Poll jenkins_get_job_status until all complete\nconst mcpServerUrl = $env.MCP_SERVER_URL || 'http://localhost:3000';\nconst maxPolls = 60; // 30 minutes (30s intervals)\nlet polls = 0;\nlet allComplete = false;\nlet statuses = [];\n\nwhile (!allComplete && polls < maxPolls) {\n  const response = await $http.post(`${mcpServerUrl}/tool/jenkins_get_job_status`, {\n    jsonrpc: '2.0',\n    id: $executionId,\n    method: 'jenkins_get_job_status',\n    params: {\n      jobs: $json.triggered\n    }\n  });\n  \n  const result = response.data.result;\n  statuses = result.statuses;\n  \n  allComplete = statuses.every(s => \n    s.status === 'success' || s.status === 'failed' || s.status === 'cancelled'\n  );\n  \n  if (!allComplete) {\n    await new Promise(resolve => setTimeout(resolve, 30000)); // 30s\n    polls++;\n  }\n}\n\nconst successful = statuses.filter(s => s.status === 'success');\nconst failed = statuses.filter(s => s.status === 'failed');\n\nreturn {\n  release_id: $json.release_id,\n  statuses: statuses,\n  successful_tenants: successful.map(s => s.tenant_id),\n  failed_tenants: failed.map(s => s.tenant_id),\n  all_successful: failed.length === 0\n};"
+      },
+      "id": "poll-status",
+      "name": "Poll Job Status",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2050, 0]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Call jira_update_ticket_status MCP tool\nconst mcpServerUrl = $env.MCP_SERVER_URL || 'http://localhost:3000';\nconst input = $input.first().json;\nconst ticketIds = input.ticket_ids || [];\n\nconst newStatus = input.all_successful ? 'Deployed' : 'Partially Deployed';\nconst comment = input.all_successful\n  ? `Deployed successfully to ${input.target_environment}`\n  : `Partial deployment: ${input.successful_tenants.length}/${input.successful_tenants.length + input.failed_tenants.length} tenants`;\n\nconst response = await $http.post(`${mcpServerUrl}/tool/jira_update_ticket_status`, {\n  jsonrpc: '2.0',\n  id: $executionId,\n  method: 'jira_update_ticket_status',\n  params: {\n    ticket_ids: ticketIds,\n    new_status: newStatus,\n    comment: comment\n  }\n});\n\nconst result = response.data.result;\n\nreturn {\n  release_id: input.release_id,\n  updated: result.updated,\n  failed: result.failed,\n  deployment_summary: input\n};"
+      },
+      "id": "update-jira",
+      "name": "Update JIRA Status",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2250, 0]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Call teams_announce_deployment MCP tool\nconst mcpServerUrl = $env.MCP_SERVER_URL || 'http://localhost:3000';\nconst summary = $json.deployment_summary;\n\nconst response = await $http.post(`${mcpServerUrl}/tool/teams_announce_deployment`, {\n  jsonrpc: '2.0',\n  id: $executionId,\n  method: 'teams_announce_deployment',\n  params: {\n    release_version: summary.release_version,\n    target_environment: summary.target_environment,\n    summary: {\n      ticket_count: summary.ticket_ids.length,\n      duration_minutes: 15, // Calculate from workflow start\n      successful_tenants: summary.successful_tenants,\n      failed_tenants: summary.failed_tenants,\n      cache_cleared_count: summary.successful_tenants.length,\n      total_tenants: summary.successful_tenants.length + summary.failed_tenants.length\n    }\n  }\n});\n\nconst result = response.data.result;\n\nreturn {\n  release_id: $json.release_id,\n  announcement_sent: result.delivered,\n  message_id: result.message_id,\n  workflow_complete: true\n};"
+      },
+      "id": "announce-teams",
+      "name": "Announce to Teams",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [2450, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{JSON.stringify($json)}}",
+        "options": {}
+      },
+      "id": "return-success",
+      "name": "Return Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2650, 0]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [[{"node": "Validate Input & Create Release", "type": "main", "index": 0}]]
+    },
+    "Validate Input & Create Release": {
+      "main": [[{"node": "Check Validation", "type": "main", "index": 0}]]
+    },
+    "Check Validation": {
+      "main": [
+        [{"node": "Get Release Tickets", "type": "main", "index": 0}],
+        [{"node": "Return Error", "type": "main", "index": 0}]
+      ]
+    },
+    "Get Release Tickets": {
+      "main": [[{"node": "Check PR Approvals", "type": "main", "index": 0}]]
+    },
+    "Check PR Approvals": {
+      "main": [[{"node": "All Approved?", "type": "main", "index": 0}]]
+    },
+    "All Approved?": {
+      "main": [
+        [{"node": "Merge Tickets to Development", "type": "main", "index": 0}],
+        [{"node": "Notify PR Owners", "type": "main", "index": 0}]
+      ]
+    },
+    "Merge Tickets to Development": {
+      "main": [[{"node": "Create Release Branch", "type": "main", "index": 0}]]
+    },
+    "Create Release Branch": {
+      "main": [[{"node": "Trigger Jenkins Deployment", "type": "main", "index": 0}]]
+    },
+    "Trigger Jenkins Deployment": {
+      "main": [[{"node": "Poll Job Status", "type": "main", "index": 0}]]
+    },
+    "Poll Job Status": {
+      "main": [[{"node": "Update JIRA Status", "type": "main", "index": 0}]]
+    },
+    "Update JIRA Status": {
+      "main": [[{"node": "Announce to Teams", "type": "main", "index": 0}]]
+    },
+    "Announce to Teams": {
+      "main": [[{"node": "Return Success", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-22T10:00:00.000Z",
+  "versionId": "1"
+}

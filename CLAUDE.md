@@ -238,6 +238,7 @@ Updates constitution.md and syncs all dependent templates. Constitution version 
 - Constitution reviewed annually
 - All MCP tools must have JSON schemas before implementation
 - Breaking tool signature changes require constitution amendment
+- Never implement walkarounds - always go for the proper solutione even if it means refactoring of big parts of the code
 
 
 ## Output after taken action
